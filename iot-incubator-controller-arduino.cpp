@@ -22,6 +22,8 @@
 #define DHTTYPE DHT22   // DHT 22  (AM2302)
 DHT dht(DHTPIN, DHTTYPE); //// Initialize DHT sensor for normal 16mhz Arduino
 
+// Constants for heatbed
+#define HEATBED_PIN 9
 
 int status = WL_IDLE_STATUS;
 ///////please enter your sensitive data in the Secret tab/arduino_secrets.h
@@ -41,15 +43,18 @@ unsigned int serverPort = 6868;
 
 WiFiUDP Udp;
 
+// Default target temprature (in String format)
+char currTargetTemp[] = "30.0";
+
 void setup() {
   WiFi.setPins(8,7,4,2);
   dht.begin();
   
   //Initialize serial and wait for port to open:
   Serial.begin(9600);
-  while (!Serial) {
-    ; // wait for serial port to connect. Needed for native USB port only
-  }
+//  while (!Serial) {
+//    ; // wait for serial port to connect. Needed for native USB port only
+//  }
 
   // check for the presence of the shield:
   if (WiFi.status() == WL_NO_SHIELD) {
@@ -99,10 +104,22 @@ void loop() {
   Serial.println(realAnalogTemp);
   
   // Send udp packet to server
-  sprintf(sendBuffer, "Test");
+  sprintf(sendBuffer, "Hum:%f,Temp:%f,Analog:%d,TargetTemp:%s\n", hum, temp, realAnalogTemp, currTargetTemp);
   Udp.beginPacket(serverIP, serverPort);
   Udp.write(sendBuffer);
-  Udp.endPacket();
+  if(Udp.endPacket() == 0) {
+    Serial.println("UDP packet send failed");
+  }
+
+  // Compare with current target temperature and turn on/off heatbed
+  if(temp > atof(currTargetTemp)) {
+    // Stop heatbed
+    digitalWrite(HEATBED_PIN, LOW);  
+  }
+  else {
+    // Start heatbed
+    digitalWrite(HEATBED_PIN, HIGH);  
+  }
 
   
   // if there's data available, read a packet
