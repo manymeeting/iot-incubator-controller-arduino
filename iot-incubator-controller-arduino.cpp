@@ -12,10 +12,16 @@
 
  */
 
-
+#include <DHT.h>;
 #include <SPI.h>
 #include <WiFi101.h>
 #include <WiFiUdp.h>
+
+//Constants for DHT
+#define DHTPIN 10     // what pin we're connected to
+#define DHTTYPE DHT22   // DHT 22  (AM2302)
+DHT dht(DHTPIN, DHTTYPE); //// Initialize DHT sensor for normal 16mhz Arduino
+
 
 int status = WL_IDLE_STATUS;
 ///////please enter your sensitive data in the Secret tab/arduino_secrets.h
@@ -37,6 +43,8 @@ WiFiUDP Udp;
 
 void setup() {
   WiFi.setPins(8,7,4,2);
+  dht.begin();
+  
   //Initialize serial and wait for port to open:
   Serial.begin(9600);
   while (!Serial) {
@@ -70,11 +78,32 @@ void setup() {
 
 void loop() {
   delay(2000); // Loop every 2s
+
+  // Read temperature from dht
+  float hum = dht.readHumidity();
+  float temp= dht.readTemperature();
+  
+  // Read temp from analog
+  int realAnalogTemp;
+  int analogInPin = 12;
+  int sensorValue = analogRead(analogInPin);
+  realAnalogTemp = Thermister(sensorValue);
+  
+  //Print temp and humidity values to serial monitor
+  Serial.print("Humidity: ");
+  Serial.print(hum);
+  Serial.print(" %, Temp: ");
+  Serial.print(temp);
+  Serial.print(" Celsius");
+  Serial.print(", Analog Temp: ");
+  Serial.println(realAnalogTemp);
+  
   // Send udp packet to server
   sprintf(sendBuffer, "Test");
   Udp.beginPacket(serverIP, serverPort);
   Udp.write(sendBuffer);
   Udp.endPacket();
+
   
   // if there's data available, read a packet
   int packetSize = Udp.parsePacket();
@@ -101,6 +130,16 @@ void loop() {
   }
 }
 
+
+//Function to perform the fancy math of the Steinhart-Hart equation
+double Thermister(int RawADC) {
+    double Temp;
+    Temp = log(((10240000/RawADC) - 10000));
+    Temp = 1 / (0.001129148 + (0.000234125 + (0.0000000876741 * Temp * Temp ))* Temp );
+    Temp = Temp - 273.15;              // Convert Kelvin to Celsius
+    Temp = (Temp * 9.0)/ 5.0 + 32.0; // Celsius to Fahrenheit - comment out this line if you need Celsius
+    return Temp;
+}
 
 void printWiFiStatus() {
   // print the SSID of the network you're attached to:
