@@ -25,6 +25,13 @@ DHT dht(DHTPIN, DHTTYPE); //// Initialize DHT sensor for normal 16mhz Arduino
 // Constants for heatbed
 #define HEATBED_PIN 9
 
+// Constants for NTC thermistors
+float R1 = 10000;
+float logR2, R2, T;
+int Vo; 
+float c1 = 1.009249522e-03, c2 = 2.378405444e-04, c3 = 2.019202697e-07;
+int NTC_Pin = A3;
+
 int status = WL_IDLE_STATUS;
 ///////please enter your sensitive data in the Secret tab/arduino_secrets.h
 char ssid[] = "";        // your network SSID (name)
@@ -44,7 +51,7 @@ unsigned int serverPort = 6868;
 WiFiUDP Udp;
 
 // Default target temprature (in String format)
-char currTargetTemp[] = "30.0";
+char currTargetTemp[] = "28.5";
 
 void setup() {
   WiFi.setPins(8,7,4,2);
@@ -88,11 +95,8 @@ void loop() {
   float hum = dht.readHumidity();
   float temp= dht.readTemperature();
   
-  // Read temp from analog
-  int realAnalogTemp;
-  int analogInPin = 12;
-  int sensorValue = analogRead(analogInPin);
-  realAnalogTemp = Thermister(sensorValue);
+  // Read NTC temp from analog
+  float realAnalogTemp = calcNTCTemp();
   
   //Print temp and humidity values to serial monitor
   Serial.print("Humidity: ");
@@ -104,7 +108,7 @@ void loop() {
   Serial.println(realAnalogTemp);
   
   // Send udp packet to server
-  sprintf(sendBuffer, "Hum:%f,Temp:%f,Analog:%d,TargetTemp:%s\n", hum, temp, realAnalogTemp, currTargetTemp);
+  sprintf(sendBuffer, "Hum:%f,Temp:%f,Analog:%f,TargetTemp:%s\n", hum, temp, realAnalogTemp, currTargetTemp);
   Udp.beginPacket(serverIP, serverPort);
   Udp.write(sendBuffer);
   if(Udp.endPacket() == 0) {
@@ -148,14 +152,14 @@ void loop() {
 }
 
 
-//Function to perform the fancy math of the Steinhart-Hart equation
-double Thermister(int RawADC) {
-    double Temp;
-    Temp = log(((10240000/RawADC) - 10000));
-    Temp = 1 / (0.001129148 + (0.000234125 + (0.0000000876741 * Temp * Temp ))* Temp );
-    Temp = Temp - 273.15;              // Convert Kelvin to Celsius
-    Temp = (Temp * 9.0)/ 5.0 + 32.0; // Celsius to Fahrenheit - comment out this line if you need Celsius
-    return Temp;
+//Function to read NTC temp and perform the fancy math of the Steinhart-Hart equation
+float calcNTCTemp() {
+    Vo = analogRead(NTC_Pin);
+    Vo = float(Vo);
+    R2 = (1023.0 - Vo) * R1 / Vo;
+    logR2 = log(R2);
+    T = (1.0 / (c1 + c2*logR2 + c3*logR2*logR2*logR2));
+    return T - 273.15; // Celsius;
 }
 
 void printWiFiStatus() {
