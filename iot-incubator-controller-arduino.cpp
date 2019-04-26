@@ -115,14 +115,14 @@ void loop() {
     Serial.println("UDP packet send failed");
   }
 
-  // Compare with current target temperature and turn on/off heatbed
-  if(temp > atof(currTargetTemp)) {
-    // Stop heatbed
-    digitalWrite(HEATBED_PIN, LOW);  
+  // Compare with current target temperature and turn on/off heatbed, note that temp can be NaN
+  if(temp < atof(currTargetTemp)) {
+    // Start heatbed
+    digitalWrite(HEATBED_PIN, HIGH);
   }
   else {
-    // Start heatbed
-    digitalWrite(HEATBED_PIN, HIGH);  
+    // Stop heatbed
+    digitalWrite(HEATBED_PIN, LOW); 
   }
 
   
