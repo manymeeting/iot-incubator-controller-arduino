@@ -51,7 +51,8 @@ unsigned int serverPort = 6868;
 WiFiUDP Udp;
 
 // Default target temprature (in String format)
-char currTargetTemp[] = "28.5";
+String currTargetTemp = "15.0";
+char currTargetTempBuffer[255];
 
 void setup() {
   WiFi.setPins(8,7,4,2);
@@ -108,7 +109,8 @@ void loop() {
   Serial.println(realAnalogTemp);
   
   // Send udp packet to server
-  sprintf(sendBuffer, "Hum:%f,Temp:%f,Analog:%f,TargetTemp:%s\n", hum, temp, realAnalogTemp, currTargetTemp);
+  currTargetTemp.toCharArray(currTargetTempBuffer, 255);
+  sprintf(sendBuffer, "Hum:%f,Temp:%f,Analog:%f,TargetTemp:%s\n", hum, temp, realAnalogTemp, currTargetTempBuffer);
   Udp.beginPacket(serverIP, serverPort);
   Udp.write(sendBuffer);
   if(Udp.endPacket() == 0) {
@@ -116,7 +118,7 @@ void loop() {
   }
 
   // Compare with current target temperature and turn on/off heatbed, note that temp can be NaN
-  if(temp < atof(currTargetTemp)) {
+  if(temp < currTargetTemp.toFloat()) {
     // Start heatbed
     digitalWrite(HEATBED_PIN, HIGH);
   }
@@ -143,6 +145,11 @@ void loop() {
     if (len > 0) packetBuffer[len] = 0;
     Serial.println("Contents:");
     Serial.println(packetBuffer);
+    // Analyze message
+    String msg = String(packetBuffer);
+    if(msg.substring(0, 10).equals("targetTemp")) {
+      currTargetTemp = msg.substring(11); // Set new target temperature
+    }
 
     // send a reply, to the IP address and port that sent us the packet we received
     Udp.beginPacket(Udp.remoteIP(), Udp.remotePort());
@@ -156,7 +163,7 @@ void loop() {
 float calcNTCTemp() {
     Vo = analogRead(NTC_Pin);
     Vo = float(Vo);
-    R2 = (1023.0 - Vo) * R1 / Vo;
+    R2 = R1 * Vo / (1023.0 - Vo);
     logR2 = log(R2);
     T = (1.0 / (c1 + c2*logR2 + c3*logR2*logR2*logR2));
     return T - 273.15; // Celsius;
